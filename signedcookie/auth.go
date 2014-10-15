@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	"github.com/bpowers/go-django/internal/github.com/kisielk/og-rek"
 )
@@ -25,6 +26,8 @@ const (
 	Pickle Serializer = iota
 	JSON
 )
+
+const DefaultMaxAge = 14 * 24 * time.Hour
 
 // the salt value used by the signed_cookies SessionStore, it is not
 // configurable through normal means.
@@ -108,10 +111,12 @@ func unsign(secret string, cookie []byte) ([]byte, error) {
 	return val, nil
 }
 
+var now = time.Now
+
 // timestampUnsign returns the cookie payload if the signature matches
 // the expected signature using the given secret, and the timestamp of
 // the cookie is still valid.  It wraps the unsign method.
-func timestampUnsign(secret string, cookie []byte) ([]byte, error) {
+func timestampUnsign(maxAge time.Duration, secret string, cookie []byte) ([]byte, error) {
 	val, err := unsign(secret, cookie)
 	if err != nil {
 		return nil, fmt.Errorf("unsign('%s'): %s", string(cookie), err)
@@ -122,20 +127,22 @@ func timestampUnsign(secret string, cookie []byte) ([]byte, error) {
 	}
 	ts := val[i+1:]
 	val = val[:i]
-	//stamp, err := b62Decode(ts)
+	stamp, err := b62Decode(ts)
 	if err != nil {
-		return nil, fmt.Errorf("b62Decode(%s): %s", string(ts), err)
+		return nil, fmt.Errorf("b62Decode: %s", err)
 	}
-	// validate timestamp
+	if time.Unix(stamp, 0).Add(maxAge).Before(now()) {
+		return nil, fmt.Errorf("expired timestamp: %d", stamp)
+	}
 	return val, nil
 }
 
 // signingLoads implements cookie object decoding in a way that is
 // compatable with django.core.signing.loads.  It returns a map
 // representing the encoded object, or an error if one occured.
-func signingLoads(s Serializer, secret, cookie string) (map[string]interface{}, error) {
+func signingLoads(s Serializer, maxAge time.Duration, secret, cookie string) (map[string]interface{}, error) {
 	c := []byte(cookie) // XXX: does this escape?
-	payload, err := timestampUnsign(secret, c)
+	payload, err := timestampUnsign(maxAge, secret, c)
 	if err != nil {
 		return nil, fmt.Errorf("timestampUnsign: %s", err)
 	}
@@ -187,6 +194,6 @@ func signingLoads(s Serializer, secret, cookie string) (map[string]interface{}, 
 // signed by the django.contrib.sessions.backends.signed_cookies
 // SessionStore, or an error if the cookie could not be decoded or if
 // signature validation failed.
-func Decode(s Serializer, secret, cookie string) (map[string]interface{}, error) {
-	return signingLoads(s, secret, cookie)
+func Decode(s Serializer, maxAge time.Duration, secret, cookie string) (map[string]interface{}, error) {
+	return signingLoads(s, maxAge, secret, cookie)
 }

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/bpowers/go-django/internal/github.com/kisielk/og-rek"
 )
@@ -39,6 +40,7 @@ var decodeData = []struct {
 }
 
 func TestOgrekAllocs(t *testing.T) {
+	now = testNowOK
 	d := &decodeData[0]
 	c := []byte(d.cookie)
 	payload := bytes.Split(c, []byte{':'})[0]
@@ -81,9 +83,10 @@ func TestOgrekAllocs(t *testing.T) {
 }
 
 func TestLoadsPickleAllocs(t *testing.T) {
+	now = testNowOK
 	n := testing.AllocsPerRun(100, func() {
 		d := &decodeData[0]
-		decoded, err := Decode(d.kind, d.secret, d.cookie)
+		decoded, err := Decode(d.kind, DefaultMaxAge, d.secret, d.cookie)
 		if err != nil {
 			panic(err)
 		}
@@ -96,23 +99,25 @@ func TestLoadsPickleAllocs(t *testing.T) {
 }
 
 func TestLoadsJSONAllocs(t *testing.T) {
+	now = testNowOK
 	n := testing.AllocsPerRun(100, func() {
 		d := &decodeData[1]
-		decoded, err := Decode(d.kind, d.secret, d.cookie)
+		decoded, err := Decode(d.kind, DefaultMaxAge, d.secret, d.cookie)
 		if err != nil {
 			panic(err)
 		}
 		_ = decoded
 	})
 	fmt.Printf("load allocs json: %f\n", n)
-	if n > 50 {
+	if n > 55 {
 		t.Errorf("too many (%f) allocs in loads", n)
 	}
 }
 
 func TestDecode(t *testing.T) {
+	now = testNowOK
 	for _, d := range decodeData {
-		decoded, err := Decode(d.kind, d.secret, d.cookie)
+		decoded, err := Decode(d.kind, DefaultMaxAge, d.secret, d.cookie)
 		if err != nil {
 			t.Errorf("Decode(%s, '%s', '%s'): %s", d.kind, d.secret, d.cookie, err)
 			continue
@@ -125,6 +130,25 @@ func TestDecode(t *testing.T) {
 			t.Errorf("DeepEqual(%#v != %#v)", expected, decoded)
 			continue
 		}
+	}
+}
+
+func testNowOK() time.Time {
+	t, _ := time.Parse("2006-01-02", "2014-10-15")
+	return t
+}
+
+func testNowTimedOut() time.Time {
+	t, _ := time.Parse("2006-01-02", "2014-11-15")
+	return t
+}
+
+func TestCookieTimeout(t *testing.T) {
+	now = testNowTimedOut
+	d := &decodeData[0]
+	_, err := Decode(d.kind, DefaultMaxAge, d.secret, d.cookie)
+	if err == nil {
+		t.Errorf("should fail to decode, but doesn't")
 	}
 }
 
