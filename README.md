@@ -7,7 +7,8 @@ utilities to help Go webservers integrate with Django servers.
 Initially, it exposes a single method, `signedcookie.Decode`, which
 will decode the payload of a cookie generated with Django's
 `signed_cookie` session backend, using either the JSON or Pickle
-serializer.
+serializer.  It should be simple to extend to writing cookies Django
+can read.
 
 usage
 -----

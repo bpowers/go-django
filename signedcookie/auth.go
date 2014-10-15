@@ -20,13 +20,16 @@ import (
 	"github.com/bpowers/go-django/internal/github.com/kisielk/og-rek"
 )
 
+// Serializer represents the method used to convert a data structure
+// into a string.  Currently two serializers are supported, JSON and Pickle.
 type Serializer int
 
 const (
-	Pickle Serializer = iota
-	JSON
+	JSON Serializer = iota
+	Pickle
 )
 
+// Django's default max_age is defined as 2 weeks.
 const DefaultMaxAge = 14 * 24 * time.Hour
 
 // the salt value used by the signed_cookies SessionStore, it is not
