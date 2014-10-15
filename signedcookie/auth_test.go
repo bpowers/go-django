@@ -13,16 +13,27 @@ import (
 )
 
 var decodeData = []struct {
+	kind    Serializer
 	secret  string
 	cookie  string
 	decoded map[string]interface{}
 }{
 	{
+		Pickle,
 		"70e97f01975bb59ae8804ca164081c46034042aa913a4dac055cad6a7e188bd1",
 		".eJxrYKotZNQI5Y1PLC3JiC8tTi2Kz0wpZPI1Yw0VQhJLSkzOTs1LKWQOFSrOz03VKy5PTS3Rc4KIluoBAEyaGG0:1XeDNx:RIsFaf0wIba2w-wXrFz47me6Zcw",
 		map[string]interface{}{
 			"_auth_user_backend": "some.sweet.Backend",
 			"_auth_user_id":      int64(1334),
+		},
+	},
+	{
+		JSON,
+		"70e97f01975bb59ae8804ca164081c46034042aa913a4dac055cad6a7e188bd1",
+		".eJyrVopPLC3JiC8tTi2Kz0xRsjI0NjbRQRZMSkzOTs0DyigV5-em6hWXp6aW6DlBBWsB4AYWwQ:1XeDSa:WrnCueUH3vz5K8cZidNGZSd-zQw",
+		map[string]interface{}{
+			"_auth_user_backend": "some.sweet.Backend",
+			"_auth_user_id":      float64(1334),
 		},
 	},
 }
@@ -69,27 +80,42 @@ func TestOgrekAllocs(t *testing.T) {
 	}
 }
 
-func TestLoadsAllocs(t *testing.T) {
+func TestLoadsPickleAllocs(t *testing.T) {
 	n := testing.AllocsPerRun(100, func() {
 		d := &decodeData[0]
-		decoded, err := Decode(d.secret, d.cookie)
+		decoded, err := Decode(d.kind, d.secret, d.cookie)
 		if err != nil {
 			panic(err)
 		}
 		_ = decoded
 	})
-	fmt.Printf("load allocs: %f\n", n)
-	if n > 70 {
+	fmt.Printf("load allocs pickle: %f\n", n)
+	if n > 60 {
+		t.Errorf("too many (%f) allocs in loads", n)
+	}
+}
+
+func TestLoadsJSONAllocs(t *testing.T) {
+	n := testing.AllocsPerRun(100, func() {
+		d := &decodeData[1]
+		decoded, err := Decode(d.kind, d.secret, d.cookie)
+		if err != nil {
+			panic(err)
+		}
+		_ = decoded
+	})
+	fmt.Printf("load allocs json: %f\n", n)
+	if n > 50 {
 		t.Errorf("too many (%f) allocs in loads", n)
 	}
 }
 
 func TestDecode(t *testing.T) {
 	for _, data := range decodeData {
-		secret, cookie, expected := data.secret, data.cookie, data.decoded
-		decoded, err := Decode(secret, cookie)
+		kind, secret, cookie, expected := data.kind, data.secret, data.cookie, data.decoded
+		decoded, err := Decode(kind, secret, cookie)
 		if err != nil {
-			t.Errorf("Decode('%s', '%s'): %s", secret, cookie, err)
+			t.Errorf("Decode(%s, '%s', '%s'): %s", kind, secret, cookie, err)
 			continue
 		}
 		if len(expected) != len(decoded) {

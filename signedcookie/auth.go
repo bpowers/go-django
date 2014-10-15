@@ -11,10 +11,18 @@ import (
 	"crypto/sha1"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
 	"github.com/bpowers/go-django/internal/github.com/kisielk/og-rek"
+)
+
+type Serializer int
+
+const (
+	Pickle Serializer = iota
+	JSON
 )
 
 // the salt value used by the signed_cookies SessionStore, it is not
@@ -102,7 +110,7 @@ func timestampUnsign(secret string, cookie []byte) ([]byte, error) {
 // signingLoads implements cookie object decoding in a way that is
 // compatable with django.core.signing.loads.  It returns a map
 // representing the encoded object, or an error if one occured.
-func signingLoads(secret, cookie string) (map[string]interface{}, error) {
+func signingLoads(s Serializer, secret, cookie string) (map[string]interface{}, error) {
 	c := []byte(cookie) // XXX: does this escape?
 	payload, err := timestampUnsign(secret, c)
 	if err != nil {
@@ -128,22 +136,26 @@ func signingLoads(secret, cookie string) (map[string]interface{}, error) {
 			return nil, fmt.Errorf("ReadAll(zlib): %s", err)
 		}
 	}
-	d := ogórek.NewDecoder(bytes.NewReader(payload))
-	val, err := d.Decode()
-	if err != nil {
-		return nil, fmt.Errorf("Decode: %s", err)
-	}
-	mapI, ok := val.(map[interface{}]interface{})
-	if !ok {
-		return nil, fmt.Errorf("mapI not an object: %#v", mapI)
-	}
 	o := make(map[string]interface{})
-	for ki, v := range mapI {
-		k, ok := ki.(string)
-		if !ok {
-			return nil, fmt.Errorf("non-string key in map: %#v", ki)
+	if s == JSON {
+		json.Unmarshal(payload, &o)
+	} else {
+		d := ogórek.NewDecoder(bytes.NewReader(payload))
+		val, err := d.Decode()
+		if err != nil {
+			return nil, fmt.Errorf("Decode: %s", err)
 		}
-		o[k] = v
+		mapI, ok := val.(map[interface{}]interface{})
+		if !ok {
+			return nil, fmt.Errorf("mapI not an object: %#v", mapI)
+		}
+		for ki, v := range mapI {
+			k, ok := ki.(string)
+			if !ok {
+				return nil, fmt.Errorf("non-string key in map: %#v", ki)
+			}
+			o[k] = v
+		}
 	}
 	return o, nil
 }
@@ -152,6 +164,6 @@ func signingLoads(secret, cookie string) (map[string]interface{}, error) {
 // signed by the django.contrib.sessions.backends.signed_cookies
 // SessionStore, or an error if the cookie could not be decoded or if
 // signature validation failed.
-func Decode(secret, cookie string) (map[string]interface{}, error) {
-	return signingLoads(secret, cookie)
+func Decode(s Serializer, secret, cookie string) (map[string]interface{}, error) {
+	return signingLoads(s, secret, cookie)
 }
