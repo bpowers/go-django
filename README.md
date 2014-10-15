@@ -20,12 +20,16 @@ First, `go get` it:
 Then import and use:
 
 ```Go
+package main
+
 import "github.com/bpowers/go-django/signedcookie"
 
 const SecretKey = "64d446b6cabc3038d4c4398d210aaa5122b6bc5a"
 
+var Pickle, MaxAge = signedcookie.Pickle, signedcookie.DefaultMaxAge
+
 func example(cookie string) {
-     session, err := signedcookie.Decode(signedcookie.Pickle, SecretKey, cookie)
+     session, err := signedcookie.Decode(Pickle, MaxAge, SecretKey, cookie)
      if err != nil {
          panic(err) // FIXME: elegantly propagate error
      }
