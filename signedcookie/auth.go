@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/bpowers/go-django/internal/github.com/kisielk/og-rek"
 )
@@ -56,6 +57,24 @@ func b64Decode(b []byte) ([]byte, error) {
 		b = append(b, '=')
 	}
 	return ioutil.ReadAll(base64.NewDecoder(base64.URLEncoding, bytes.NewReader(b)))
+}
+
+var (
+	base62Alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+)
+
+// b62decode decodes a base62-encoded string into an int64, using the
+// same method as Django's django.utils.baseconv.BaseConverter.
+func b62Decode(b []byte) (int64, error) {
+	var n int64
+	for _, d := range b {
+		i := strings.IndexByte(base62Alphabet, d)
+		if i < 0 {
+			return -1, fmt.Errorf("not base62 encoded")
+		}
+		n = n*int64(len(base62Alphabet)) + int64(i)
+	}
+	return n, nil
 }
 
 // djangoSignature calculates a HMAC signature in a way that matches
@@ -101,9 +120,13 @@ func timestampUnsign(secret string, cookie []byte) ([]byte, error) {
 	if i == -1 {
 		return nil, fmt.Errorf("expected : in '%s'", string(cookie))
 	}
-	//ts := val[i+1:]
+	ts := val[i+1:]
 	val = val[:i]
-	// TODO: base64 decode + validate timestamp
+	//stamp, err := b62Decode(ts)
+	if err != nil {
+		return nil, fmt.Errorf("b62Decode(%s): %s", string(ts), err)
+	}
+	// validate timestamp
 	return val, nil
 }
 

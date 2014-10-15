@@ -111,19 +111,40 @@ func TestLoadsJSONAllocs(t *testing.T) {
 }
 
 func TestDecode(t *testing.T) {
-	for _, data := range decodeData {
-		kind, secret, cookie, expected := data.kind, data.secret, data.cookie, data.decoded
-		decoded, err := Decode(kind, secret, cookie)
+	for _, d := range decodeData {
+		decoded, err := Decode(d.kind, d.secret, d.cookie)
 		if err != nil {
-			t.Errorf("Decode(%s, '%s', '%s'): %s", kind, secret, cookie, err)
+			t.Errorf("Decode(%s, '%s', '%s'): %s", d.kind, d.secret, d.cookie, err)
 			continue
 		}
+		expected := d.decoded
 		if len(expected) != len(decoded) {
 			t.Errorf("wrong len")
 		}
 		if !reflect.DeepEqual(expected, decoded) {
 			t.Errorf("DeepEqual(%#v != %#v)", expected, decoded)
 			continue
+		}
+	}
+}
+
+var base62Data = []struct {
+	encoded string
+	decoded int64
+}{
+	{"d5778337", 137633489102557},
+	{"d5778349", 137633489102621},
+}
+
+func TestBase62Decode(t *testing.T) {
+	for _, d := range base62Data {
+		n, err := b62Decode([]byte(d.encoded))
+		if err != nil {
+			t.Errorf("b62Decode('%s'): %s", d.encoded, err)
+			continue
+		}
+		if n != d.decoded {
+			t.Errorf("incorrect decode: %d != %d", n, d.decoded)
 		}
 	}
 }
